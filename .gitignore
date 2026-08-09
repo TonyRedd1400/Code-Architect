@@ -1,39 +1,8 @@
-```
-# Dependencies
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/
-.coverage
-htmlcov/
+# Project-specific ignores
+PROJECT_KNOWLEDGE.md
 
-# Build artifacts
-dist/
-build/
-*.egg-info/
+Wait, I need to reconsider this. PROJECT_KNOWLEDGE.md appears to be a source/config file (markdown), not a build artifact, dependency, or temporary file. According to rule #6 and #7, I should not ignore source code or config files unless they are clearly generated or sensitive.
 
-# Virtual environments
-.venv/
-venv/
-env/
+Since only a markdown file was added and no build artifacts, dependencies, or temp files are present in the changes, the output should be empty.
 
-# Logs
-*.log
-
-# Editor/IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# System
-.DS_Store
-Thumbs.db
-
-# Environment variables
-.env
-.env.local
-*.env.*
-```
+(Empty - no output)
