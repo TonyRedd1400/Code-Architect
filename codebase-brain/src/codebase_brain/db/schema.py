@@ -139,7 +139,9 @@ def get_schema_version(conn: sqlite3.Connection) -> int:
     """
     cursor = conn.execute("SELECT version FROM schema_info ORDER BY version DESC LIMIT 1")
     row = cursor.fetchone()
-    return row["version"] if row else 0
+    if row is None:
+        return 0
+    return int(row[0])
 
 
 def needs_migration(conn: sqlite3.Connection) -> bool:
@@ -166,12 +168,8 @@ def init_database(db_path: Path) -> sqlite3.Connection:
     Returns:
         SQLite connection to the new database
     """
-    import sqlite3
-    
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.row_factory = sqlite3.Row
-    
+    from .connection import create_connection
+
+    conn = create_connection(db_path)
     create_tables(conn)
-    
     return conn

@@ -9,9 +9,6 @@ from typing import Optional
 class Config:
     """Application configuration."""
     
-    # Database settings
-    db_filename: str = ".codebrain.db"
-    
     # Ignore patterns for scanning
     ignore_dirs: tuple[str, ...] = (
         "node_modules",

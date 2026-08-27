@@ -4,14 +4,15 @@
 
 **codebase-brain** es una herramienta CLI en Python que convierte cualquier repositorio de código en una **base de conocimiento estructurada** (SQLite) que permite a agentes de IA entender, navegar y razonar sobre una base de código sin conocimiento previo.
 
-### Estado Actual: MVP Inicial ✅
+### Estado actual: fundamentos del MVP funcionales
 
-El proyecto está en su **fase de esqueleto funcional**. Esto significa:
+El proyecto tiene un flujo mínimo verificable. Esto significa:
 - ✅ La estructura del proyecto está completa y modular.
-- ✅ La CLI funciona y acepta comandos.
-- ✅ El esquema de la base de datos está definido y es funcional.
-- ✅ Existen tests básicos que validan la estructura.
-- ⚠️ **Importante:** Los comandos actuales son *placeholders* (muestran mensajes "TODO"). La lógica real de análisis profundo se implementará en las siguientes iteraciones.
+- ✅ `analyze` escanea e indexa archivos y metadatos en SQLite.
+- ✅ `overview` muestra estadísticas reales del repositorio.
+- ✅ La base se guarda fuera del repositorio objetivo por defecto.
+- ✅ La suite cubre CLI, SQLite e ingestión en Windows.
+- ⚠️ `explain`, `impact` y `find` todavía no están implementados y fallan explícitamente.
 
 ---
 
@@ -47,8 +48,8 @@ src/codebase_brain/
 
 1.  **Usuario** ejecuta un comando CLI (ej. `codebrain analyze ./mi-repo`).
 2.  **CLI** valida los argumentos y llama al módulo correspondiente.
-3.  **Ingestión** escanea el directorio, detecta lenguajes y entrypoints.
-4.  **Base de Datos** (SQLite) almacena la estructura y metadatos extraídos.
+3.  **Ingestión** escanea el directorio, detecta lenguajes, metadatos y entrypoints.
+4.  **Base de Datos** (SQLite externa al repo) almacena archivos y metadatos extraídos.
 5.  **Análisis/Grafo** (en desarrollo) procesará las relaciones para responder consultas.
 
 ---
@@ -70,16 +71,17 @@ pytest
 ```
 
 ### 3. Uso de la CLI
-Prueba los comandos disponibles (actualmente muestran mensajes de preparación):
+Prueba los comandos funcionales:
 
 ```bash
 codebrain --help
 codebrain analyze ./tests/fixtures/sample_repo
+codebrain analyze ./tests/fixtures/sample_repo --db-path ./analysis.db
 codebrain overview ./tests/fixtures/sample_repo
-codebrain explain ./tests/fixtures/sample_repo index.js
-codebrain impact ./tests/fixtures/sample_repo index.js
-codebrain find ./tests/fixtures/sample_repo "app"
 ```
+
+Los comandos `explain`, `impact` y `find` están reservados, pero devuelven un
+código distinto de cero hasta que exista su implementación real.
 
 ---
 
@@ -100,11 +102,10 @@ La inteligencia del sistema reside en su esquema de base de datos (`src/codebase
 
 ## 📋 Próximos Pasos (Roadmap Inmediato)
 
-Si eres un desarrollador o un agente de IA ayudando en este proyecto, **estas son las tareas prioritarias** para convertir el esqueleto en una herramienta funcional:
+Estas son las tareas prioritarias para ampliar el MVP funcional:
 
-### Prioridad 1: Implementar la Lógica de Ingestión Real
-Actualmente los comandos devuelven "TODO". Hay que conectar la CLI con la lógica de escaneo.
-- [ ] **Conectar `analyze`**: Hacer que el comando `analyze` ejecute realmente `scan_repository`, `detect_languages` y guarde los resultados en la tabla `files` de SQLite.
+### Prioridad 1: Fortalecer la ingestión
+- [x] **Conectar `analyze`**: Ejecutar el escaneo, detectar lenguajes y persistir archivos y metadatos en SQLite.
 - [ ] **Filtrado inteligente**: Asegurar que el escáner respete `.gitignore` y ignore carpetas como `node_modules`, `dist`, `__pycache__`.
 - [ ] **Extracción de Scripts**: Mejorar `entrypoints.py` para leer `package.json`, `pyproject.toml`, `Makefile` y guardar los comandos de ejecución en la DB.
 
@@ -113,8 +114,8 @@ El valor principal es saber "qué depende de qué".
 - [ ] **Análisis de Imports**: Crear funciones simples para detectar `import`, `require`, `from ... import` en archivos `.py` y `.js`.
 - [ ] **Llenar tabla `edges`**: Guardar estas relaciones en la base de datos para permitir consultas de impacto.
 
-### Prioridad 3: Comandos Útiles
-- [ ] **Implementar `overview`**: Que lea de la DB y muestre: "Este repo tiene X archivos, principalmente en Python, entrypoint en src/main.py".
+### Prioridad 3: Comandos útiles
+- [x] **Implementar `overview`**: Mostrar estadísticas, lenguajes y entrypoints detectados en vivo.
 - [ ] **Implementar `impact`**: Usar la tabla `edges` para responder: "Si cambias este archivo, estos otros 3 podrían romperse".
 
 ### Prioridad 4: Integración Futura con LLM

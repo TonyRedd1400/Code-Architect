@@ -261,7 +261,7 @@ codebase-brain follows a modular architecture designed for incremental developme
 4. entrypoints.detect_entrypoints() finds entry points
        │
        ▼
-5. db.connection.create_db() creates SQLite DB
+5. db.connection.get_db_path() selects an external cache DB
        │
        ▼
 6. db.schema.create_tables() initializes schema
@@ -270,22 +270,16 @@ codebase-brain follows a modular architecture designed for incremental developme
 7. Files inserted into files table
        │
        ▼
-8. graph.builder.build_graph() extracts imports
-       │
-       ▼
-9. Edges inserted into edges table
-       │
-       ▼
-10. Metadata stored in metadata table
+8. Metadata and entrypoints stored in metadata table
 ```
 
-### Query Command Flow
+### Future Query Command Flow
 
 ```
 1. CLI receives: codebrain impact /path/to/repo ./src/app.js
        │
        ▼
-2. Load database from repo path
+2. Load database from the user cache or an explicit --db-path
        │
        ▼
 3. graph.queries.query_dependents("app.js")

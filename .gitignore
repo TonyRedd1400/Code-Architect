@@ -1,8 +1,27 @@
-# Project-specific ignores
-PROJECT_KNOWLEDGE.md
+# Python bytecode and environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
 
-Wait, I need to reconsider this. PROJECT_KNOWLEDGE.md appears to be a source/config file (markdown), not a build artifact, dependency, or temporary file. According to rule #6 and #7, I should not ignore source code or config files unless they are clearly generated or sensitive.
+# Test and coverage output
+.pytest_cache/
+.coverage
+htmlcov/
 
-Since only a markdown file was added and no build artifacts, dependencies, or temp files are present in the changes, the output should be empty.
+# Build artifacts
+build/
+dist/
+*.egg-info/
 
-(Empty - no output)
+# Local analysis databases and temporary files
+*.db
+*.db-shm
+*.db-wal
+.tmp/
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

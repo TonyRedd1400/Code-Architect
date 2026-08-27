@@ -1,70 +1,61 @@
 # codebase-brain
 
-Convert a code repository into a navigable knowledge base for AI agents.
+Convert a local code repository into a file-level SQLite knowledge base for AI agents.
 
-## Current Status
+## Current status
 
-**Status:** Initial skeleton / MVP development
+The foundational MVP flow is functional:
 
-This is the initial skeleton of the project. The CLI structure is in place with placeholder commands. Next steps include implementing basic repository scanning and language detection.
+- `analyze` scans a repository, detects languages and entrypoints, and persists files and metadata.
+- `overview` prints live repository statistics.
+- SQLite databases are stored outside the analyzed repository by default.
+- `explain`, `impact`, and `find` remain intentionally unimplemented and return a non-zero exit code.
+- Dependency edges, symbol extraction, and LLM integration are future work.
 
 ## Installation
 
+Python 3.11 or newer is required.
+
 ```bash
 cd codebase-brain
-pip install -e .
+pip install -e ".[dev]"
 ```
 
-## Running Tests
+## Tests
 
 ```bash
 pytest
 ```
 
-## CLI Usage
+## CLI usage
 
 ```bash
 # Show help
 codebrain --help
 
-# Analyze a repository
+# Analyze a repository using the platform user cache
 codebrain analyze <repo_path>
 
-# Get overview of a repository
+# Choose an explicit SQLite output path
+codebrain analyze <repo_path> --db-path ./analysis.db
+
+# Print a live overview without writing to the repository
 codebrain overview <repo_path>
-
-# Explain a specific file or module
-codebrain explain <repo_path> <target_path>
-
-# Analyze impact of changes
-codebrain impact <repo_path> <target>
-
-# Find something in the codebase
-codebrain find <repo_path> <query>
 ```
 
-## Next Steps
+The default database directory is `%LOCALAPPDATA%/codebase-brain` on Windows,
+`$XDG_CACHE_HOME/codebase-brain` when configured, or `~/.cache/codebase-brain`
+otherwise. The filename includes a hash of the absolute repository path so
+repositories with the same directory name do not collide.
 
-1. Implement basic language detection
-2. Implement file scanning (ignoring node_modules, dist, .git, etc.)
-3. Implement package.json detection
-4. Implement entrypoint detection
-5. Create SQLite database with initial schema
-6. Build basic dependency graph
-7. Implement overview command
-8. Implement simple impact analysis
+## Current data flow
 
-See `TASKS.md` for detailed task breakdown.
-
-## Project Structure
-
+```text
+repository -> scan/language/entrypoint detection -> external SQLite database
+           -> live overview
 ```
-codebase-brain/
-  src/codebase_brain/    # Main source code
-  tests/                 # Test suite
-  prompts/               # LLM prompts for future use
-  docs/                  # Documentation
-```
+
+See `SPEC.md`, `ARCHITECTURE.md`, and `TASKS.md` for scope and future work.
 
 ## License
 
