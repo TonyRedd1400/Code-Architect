@@ -10,99 +10,167 @@ Provides subcommands:
 """
 
 import argparse
+import json
+import sqlite3
 import sys
 from pathlib import Path
+
+from .analysis.overview import format_overview_text, get_overview
+from .db import get_db_path, init_database
+from .ingestion import (
+    detect_entrypoints,
+    detect_languages,
+    detect_metadata,
+    get_language_from_extension,
+    scan_repository,
+)
+from .utils.fs import file_hash
+
+
+NOT_IMPLEMENTED_EXIT = 2
+
+
+def _resolve_repository(repo_path: str) -> Path | None:
+    """Resolve and validate a repository directory, printing CLI errors."""
+    resolved = Path(repo_path).expanduser().resolve()
+    if not resolved.exists():
+        print(f"Error: Repository path does not exist: {resolved}", file=sys.stderr)
+        return None
+    if not resolved.is_dir():
+        print(f"Error: Repository path is not a directory: {resolved}", file=sys.stderr)
+        return None
+    return resolved
+
+
+def _persist_analysis(repo_path: Path, db_path: Path) -> dict[str, object]:
+    """Scan a repository and persist its current file-level analysis."""
+    scan = scan_repository(repo_path)
+    languages = detect_languages(repo_path)
+    entrypoints = detect_entrypoints(repo_path)
+    metadata = detect_metadata(repo_path)
+
+    conn = init_database(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO repos (path, name) VALUES (?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+                name = excluded.name,
+                analyzed_at = datetime('now')
+            """,
+            (str(repo_path), metadata.get("name", repo_path.name)),
+        )
+        repo_id = conn.execute(
+            "SELECT id FROM repos WHERE path = ?", (str(repo_path),)
+        ).fetchone()[0]
+
+        # A new scan replaces file-derived data from the previous run.
+        conn.execute("DELETE FROM edges WHERE repo_id = ?", (repo_id,))
+        conn.execute("DELETE FROM summaries WHERE repo_id = ?", (repo_id,))
+        conn.execute("DELETE FROM files WHERE repo_id = ?", (repo_id,))
+        for file_info in scan.files:
+            conn.execute(
+                """
+                INSERT INTO files (repo_id, path, language, size_bytes, hash)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    repo_id,
+                    file_info["path"],
+                    get_language_from_extension(file_info["extension"]),
+                    file_info["size_bytes"],
+                    file_hash(file_info["absolute_path"]),
+                ),
+            )
+
+        stored_metadata = {
+            **metadata,
+            "languages": languages,
+            "entrypoints": entrypoints,
+        }
+        conn.execute("DELETE FROM metadata WHERE repo_id = ?", (repo_id,))
+        conn.executemany(
+            "INSERT INTO metadata (repo_id, key, value) VALUES (?, ?, ?)",
+            [
+                (repo_id, key, json.dumps(value, ensure_ascii=False, sort_keys=True))
+                for key, value in stored_metadata.items()
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {
+        "database": str(db_path),
+        "total_files": scan.total_files,
+        "languages": languages["languages"],
+        "entrypoints": entrypoints,
+    }
+
+
+def _not_implemented(command: str) -> int:
+    print(
+        f"Error: '{command}' is not implemented in this MVP.",
+        file=sys.stderr,
+    )
+    return NOT_IMPLEMENTED_EXIT
 
 
 def cmd_analyze(args: argparse.Namespace) -> int:
     """Handle the 'analyze' subcommand."""
-    repo_path = Path(args.repo_path).resolve()
-    
-    if not repo_path.exists():
-        print(f"Error: Repository path does not exist: {repo_path}", file=sys.stderr)
+    repo_path = _resolve_repository(args.repo_path)
+    if repo_path is None:
         return 1
-    
-    if not repo_path.is_dir():
-        print(f"Error: Repository path is not a directory: {repo_path}", file=sys.stderr)
+
+    db_path = get_db_path(repo_path, db_path=args.db_path)
+    try:
+        result = _persist_analysis(repo_path, db_path)
+    except (OSError, sqlite3.Error) as exc:
+        print(f"Error: Analysis failed: {exc}", file=sys.stderr)
         return 1
-    
-    # TODO: Implement full repository analysis
-    # - Scan repository files
-    # - Detect languages
-    # - Find entrypoints
-    # - Create SQLite database
-    # - Build dependency graph
-    print(f"TODO: implement analyze for {repo_path}")
+
+    print(f"Analyzed: {repo_path}")
+    print(f"Files indexed: {result['total_files']}")
+    print(f"Database: {result['database']}")
     return 0
 
 
 def cmd_overview(args: argparse.Namespace) -> int:
     """Handle the 'overview' subcommand."""
-    repo_path = Path(args.repo_path).resolve()
-    
-    if not repo_path.exists():
-        print(f"Error: Repository path does not exist: {repo_path}", file=sys.stderr)
+    repo_path = _resolve_repository(args.repo_path)
+    if repo_path is None:
         return 1
-    
-    # TODO: Implement repository overview
-    # - Show file counts by language
-    # - Show directory structure
-    # - Show entrypoints found
-    # - Show basic statistics
-    print(f"TODO: implement overview for {repo_path}")
+
+    try:
+        print(format_overview_text(get_overview(repo_path)))
+    except OSError as exc:
+        print(f"Error: Overview failed: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 
 def cmd_explain(args: argparse.Namespace) -> int:
     """Handle the 'explain' subcommand."""
-    repo_path = Path(args.repo_path).resolve()
-    target = args.target_path
-    
-    if not repo_path.exists():
-        print(f"Error: Repository path does not exist: {repo_path}", file=sys.stderr)
+    repo_path = _resolve_repository(args.repo_path)
+    if repo_path is None:
         return 1
-    
-    # TODO: Implement file/module explanation
-    # - Load file from database
-    # - Show symbols in file
-    # - Show dependencies
-    # - Generate summary (future: LLM-based)
-    print(f"TODO: implement explain for {target} in {repo_path}")
-    return 0
+    return _not_implemented("explain")
 
 
 def cmd_impact(args: argparse.Namespace) -> int:
     """Handle the 'impact' subcommand."""
-    repo_path = Path(args.repo_path).resolve()
-    target = args.target
-    
-    if not repo_path.exists():
-        print(f"Error: Repository path does not exist: {repo_path}", file=sys.stderr)
+    repo_path = _resolve_repository(args.repo_path)
+    if repo_path is None:
         return 1
-    
-    # TODO: Implement impact analysis
-    # - Find what depends on target
-    # - Show transitive dependencies
-    # - Identify potential breakage
-    print(f"TODO: implement impact for {target} in {repo_path}")
-    return 0
+    return _not_implemented("impact")
 
 
 def cmd_find(args: argparse.Namespace) -> int:
     """Handle the 'find' subcommand."""
-    repo_path = Path(args.repo_path).resolve()
-    query = args.query
-    
-    if not repo_path.exists():
-        print(f"Error: Repository path does not exist: {repo_path}", file=sys.stderr)
+    repo_path = _resolve_repository(args.repo_path)
+    if repo_path is None:
         return 1
-    
-    # TODO: Implement search functionality
-    # - Search file paths
-    # - Search symbol names
-    # - Search file contents (optional)
-    print(f"TODO: implement find for '{query}' in {repo_path}")
-    return 0
+    return _not_implemented("find")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -130,12 +198,17 @@ def create_parser() -> argparse.ArgumentParser:
         "analyze",
         help="Perform full repository analysis and create knowledge base",
         description="Scan a repository, detect languages and entrypoints, "
-                    "build dependency graph, and store in SQLite database.",
+                    "and store file-level results in a SQLite database.",
     )
     analyze_parser.add_argument(
         "repo_path",
         type=str,
         help="Path to the repository to analyze",
+    )
+    analyze_parser.add_argument(
+        "--db-path",
+        type=str,
+        help="Explicit SQLite output path (default: platform user cache)",
     )
     analyze_parser.set_defaults(func=cmd_analyze)
     

@@ -1,137 +1,106 @@
-"""Tests for database schema."""
+"""Tests for database connections and schema."""
 
 import sqlite3
-import tempfile
-from pathlib import Path
 
+from codebase_brain.db.connection import create_connection, get_db_path
 from codebase_brain.db.schema import (
-    create_tables,
-    SCHEMA_DDL,
     SCHEMA_VERSION,
+    create_tables,
     get_schema_version,
     init_database,
 )
 
 
-def test_create_tables():
-    """Test that tables can be created without errors."""
-    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
-        conn = sqlite3.connect(tmp.name)
-        try:
-            create_tables(conn)
-            # If we get here without exception, test passes
-        finally:
-            conn.close()
+def test_create_tables_and_indexes(tmp_path):
+    conn = sqlite3.connect(tmp_path / "schema.db")
+    try:
+        create_tables(conn)
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        indexes = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            ).fetchall()
+        }
+    finally:
+        conn.close()
+
+    assert {
+        "schema_info",
+        "repos",
+        "files",
+        "symbols",
+        "edges",
+        "summaries",
+        "metadata",
+    }.issubset(tables)
+    assert any(name.startswith("idx_files") for name in indexes)
+    assert any(name.startswith("idx_symbols") for name in indexes)
+    assert any(name.startswith("idx_edges") for name in indexes)
 
 
-def test_schema_version():
-    """Test that schema version is recorded."""
-    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
-        conn = sqlite3.connect(tmp.name)
-        try:
-            create_tables(conn)
-            version = get_schema_version(conn)
-            assert version == SCHEMA_VERSION
-        finally:
-            conn.close()
+def test_schema_version_supports_default_row_factory():
+    conn = sqlite3.connect(":memory:")
+    try:
+        create_tables(conn)
+        assert get_schema_version(conn) == SCHEMA_VERSION
+    finally:
+        conn.close()
 
 
-def test_tables_exist():
-    """Test that all expected tables are created."""
-    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
-        conn = sqlite3.connect(tmp.name)
-        try:
-            create_tables(conn)
-            
-            # Check all tables exist
-            cursor = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-            )
-            tables = {row[0] for row in cursor.fetchall()}
-            
-            expected_tables = {
-                'schema_info',
-                'repos',
-                'files',
-                'symbols',
-                'edges',
-                'summaries',
-                'metadata',
-            }
-            
-            assert expected_tables.issubset(tables), f"Missing tables: {expected_tables - tables}"
-        finally:
-            conn.close()
+def test_schema_version_supports_row_objects():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    try:
+        create_tables(conn)
+        assert get_schema_version(conn) == SCHEMA_VERSION
+    finally:
+        conn.close()
 
 
-def test_indexes_exist():
-    """Test that indexes are created."""
-    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
-        conn = sqlite3.connect(tmp.name)
-        try:
-            create_tables(conn)
-            
-            cursor = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='index' ORDER BY name"
-            )
-            indexes = {row[0] for row in cursor.fetchall()}
-            
-            # Check some key indexes exist
-            assert any('idx_files' in idx for idx in indexes)
-            assert any('idx_symbols' in idx for idx in indexes)
-            assert any('idx_edges' in idx for idx in indexes)
-        finally:
-            conn.close()
+def test_create_tables_is_idempotent():
+    conn = sqlite3.connect(":memory:")
+    try:
+        create_tables(conn)
+        create_tables(conn)
+        assert get_schema_version(conn) == SCHEMA_VERSION
+    finally:
+        conn.close()
 
 
-def test_foreign_keys_enabled():
-    """Test that foreign keys can be enabled."""
-    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
-        conn = sqlite3.connect(tmp.name)
-        try:
-            conn.execute("PRAGMA foreign_keys = ON")
-            cursor = conn.execute("PRAGMA foreign_keys")
-            result = cursor.fetchone()
-            assert result[0] == 1
-        finally:
-            conn.close()
+def test_init_database_enables_foreign_keys(tmp_path):
+    conn = init_database(tmp_path / "initialized.db")
+    try:
+        assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+        assert get_schema_version(conn) == SCHEMA_VERSION
+    finally:
+        conn.close()
 
 
-def test_init_database():
-    """Test full database initialization."""
-    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
-        db_path = Path(tmp.name)
-        conn = init_database(db_path)
-        try:
-            version = get_schema_version(conn)
-            assert version == SCHEMA_VERSION
-            
-            # Verify we can insert data
-            conn.execute(
-                "INSERT INTO repos (path, name) VALUES (?, ?)",
-                ("/test/repo", "test-repo")
-            )
-            conn.commit()
-            
-            cursor = conn.execute("SELECT COUNT(*) FROM repos")
-            count = cursor.fetchone()[0]
-            assert count == 1
-        finally:
-            conn.close()
+def test_create_connection_creates_parent_directory(tmp_path):
+    db_path = tmp_path / "nested" / "analysis.db"
+    conn = create_connection(db_path)
+    conn.close()
+    assert db_path.exists()
 
 
-def test_idempotent_table_creation():
-    """Test that create_tables can be called multiple times."""
-    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
-        conn = sqlite3.connect(tmp.name)
-        try:
-            # Call multiple times
-            create_tables(conn)
-            create_tables(conn)
-            create_tables(conn)
-            
-            # Should still work
-            version = get_schema_version(conn)
-            assert version == SCHEMA_VERSION
-        finally:
-            conn.close()
+def test_default_database_path_is_outside_repository(tmp_path):
+    repo_path = tmp_path / "repo"
+    cache_path = tmp_path / "cache"
+    repo_path.mkdir()
+
+    db_path = get_db_path(repo_path, cache_dir=cache_path)
+
+    assert db_path.parent == cache_path.resolve()
+    assert repo_path.resolve() not in db_path.parents
+    assert db_path.suffix == ".db"
+
+
+def test_explicit_database_path_takes_precedence(tmp_path):
+    explicit_path = tmp_path / "custom" / "brain.db"
+    assert get_db_path(tmp_path, db_path=explicit_path) == explicit_path.resolve()

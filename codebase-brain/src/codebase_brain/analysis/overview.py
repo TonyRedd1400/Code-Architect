@@ -2,15 +2,18 @@
 
 from pathlib import Path
 from typing import Any
-from collections import defaultdict
+
+from ..ingestion import (
+    detect_entrypoints,
+    detect_languages,
+    detect_metadata,
+    scan_repository,
+)
 
 
 def get_overview(repo_path: Path | str) -> dict[str, Any]:
     """
     Generate a high-level overview of a repository.
-    
-    This is a placeholder/stub for the MVP. Future implementation will
-    provide detailed statistics about files, languages, structure, etc.
     
     Args:
         repo_path: Path to the repository root
@@ -37,19 +40,24 @@ def get_overview(repo_path: Path | str) -> dict[str, Any]:
     
     repo_path = repo_path.resolve()
     
-    # TODO: Implement full overview generation
-    # For now, return minimal placeholder
-    
+    scan = scan_repository(repo_path)
+    language_info = detect_languages(repo_path)
+    entrypoints = detect_entrypoints(repo_path)
+    metadata = detect_metadata(repo_path)
+    directories = sorted(
+        {file_info["directory"] for file_info in scan.files if file_info["directory"] != "."}
+    )
+
     return {
         "path": str(repo_path),
-        "name": repo_path.name,
-        "total_files": 0,
-        "total_size_bytes": 0,
-        "languages": {},
-        "directories": [],
-        "entrypoints": [],
-        "metadata": {},
-        "note": "TODO: implement full overview",
+        "name": metadata.get("name", repo_path.name),
+        "total_files": scan.total_files,
+        "total_size_bytes": scan.total_size_bytes,
+        "languages": language_info["languages"],
+        "primary_language": language_info["primary_language"],
+        "directories": directories,
+        "entrypoints": entrypoints,
+        "metadata": metadata,
     }
 
 

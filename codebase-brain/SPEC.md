@@ -68,16 +68,16 @@ The Minimum Viable Product (MVP) will be a Python CLI tool that:
 ## Acceptance Criteria for MVP
 
 - [ ] CLI installs via `pip install -e .`
-- [ ] All 5 subcommands exist and show help without errors
-- [ ] `codebrain analyze <path>` scans repo and creates SQLite DB
-- [ ] `codebrain overview <path>` shows basic repo statistics
+- [x] All 5 subcommands exist and show help without errors
+- [x] `codebrain analyze <path>` scans repo and creates an external SQLite DB
+- [x] `codebrain overview <path>` shows basic repo statistics
 - [ ] `codebrain explain <path> <file>` shows file info (placeholder OK)
 - [ ] `codebrain impact <path> <target>` shows dependents (basic)
 - [ ] `codebrain find <path> <query>` searches files (basic)
-- [ ] SQLite database created with required tables
-- [ ] Tests pass with `pytest`
-- [ ] No external service dependencies
-- [ ] No LLM calls made
+- [x] SQLite database created with required tables
+- [x] Tests pass with `pytest`
+- [x] No external service dependencies
+- [x] No LLM calls made
 
 ## Success Metrics
 
